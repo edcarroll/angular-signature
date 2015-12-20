@@ -73,6 +73,14 @@ angular.module('signature').directive('signaturePad', ['$window',
         angular.element($window).bind('resize', function() {
             scope.onResize();
         });
+        
+        angular.element(canvas).bind('mouseup', function() {
+            scope.accept();
+        });
+        
+        angular.element(canvas).bind('touchend', function() {
+            scope.accept();
+        });
       }
     };
   }
