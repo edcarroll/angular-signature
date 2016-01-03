@@ -5,86 +5,57 @@
 
 angular.module('signature', []);
 
-angular.module('signature').directive('signaturePad', ['$window',
-  function ($window) {
-    'use strict';
-
-    var signaturePad, canvas, element, EMPTY_IMAGE = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
+angular.module('signature').directive('signaturePad', [function() {
     return {
-      restrict: 'EA',
-      replace: true,
-      template: '<div class="signature" ng-style="{height: height + \'px\', width: width + \'px\'}"><canvas height="{{ height }}" width="{{ width }}"></canvas></div>',
-      scope: {
-        accept: '=',
-        clear: '=',
-        dataurl: '=',
-        height: '@',
-        width: '@'
-      },
-      controller: [
-        '$scope',
-        function ($scope) {
-          $scope.accept = function () {
-            var signature = {};
+        restrict: 'E',
+        replace: true,
+        require: '?ngModel',
+        template: '<div class="signature"><canvas ng-style="{height: height + \'px\', width: width + \'px\'}" style="background: white; border: solid 1px #2c3e50; margin-bottom: 4px;" height="{{ height }}" width="{{ width }}"></canvas></div>',
+        scope: {
+            clear: '=',
+            legalCopy: '=',
+            height: '@',
+            width: '@'
+        },
+        link: function(scope, element, attrs, ngModel) {
+            var canvas = element.find('canvas')[0];
 
-            if (!signaturePad.isEmpty()) {
-              signature.dataUrl = signaturePad.toDataURL();
-              signature.isEmpty = false;
-            } else {
-              signature.dataUrl = EMPTY_IMAGE;
-              signature.isEmpty = true;
-            }
+            var signaturePad = new SignaturePad(canvas, {
+                backgroundColor: "rgb(255,255,255)",
+                onEnd: function() {
+                    if (ngModel) {
+                        if (signaturePad.isEmpty()) {
+                            ngModel.$setValidity('signatureRequired', false);
+                        }
+                        else {
+                            ngModel.$setValidity('signatureRequired', true);
+                        }
+                        ngModel.$setViewValue({ legalCopy: scope.legalCopy, signature: signaturePad.toDataURL() });
+                    }
+                }
+            });
 
-            return signature;
-          };
+            if (!scope.height) scope.height = 220;
+            if (!scope.width) scope.width = 568;
 
-          $scope.clear = function () {
-            signaturePad.clear();
-          };
+            scope.clear = function() {
+                signaturePad.clear();
+                if (ngModel) {
+                    ngModel.$setValidity('signatureRequired', false);
+                    ngModel.$setViewValue({ legalCopy: scope.legalCopy, signature: signaturePad.toDataURL() });
+                }
+            };
 
-          $scope.$watch("dataurl", function (dataUrl) {
-            if (dataUrl) {
-              signaturePad.fromDataURL(dataUrl);
-            }
-          });
+                // When zoomed out to less than 100%, for some very strange reason,
+                // some browsers report devicePixelRatio as less than 1
+                // and only part of the canvas is cleared then.
+                var ratio =  Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+
+            scope.clear();
         }
-      ],
-      link: function (scope, element) {
-        canvas = element.find('canvas')[0];
-        signaturePad = new SignaturePad(canvas);
-
-        if (!scope.height) scope.height = 220;
-        if (!scope.width) scope.width = 568;
-
-        if (scope.signature && !scope.signature.$isEmpty && scope.signature.dataUrl) {
-          signaturePad.fromDataURL(scope.signature.dataUrl);
-        }
-
-        scope.onResize = function() {
-          var canvas = element.find('canvas').[0];
-          var ratio =  Math.max($window.devicePixelRatio || 1, 1);
-          canvas.width = canvas.offsetWidth * ratio;
-          canvas.height = canvas.offsetHeight * ratio;
-          canvas.getContext("2d").scale(ratio, ratio);
-        }
-
-        scope.onResize();
-
-        angular.element($window).bind('resize', function() {
-            scope.onResize();
-        });
-        
-        angular.element(canvas).bind('mouseup', function() {
-            scope.accept();
-        });
-        
-        angular.element(canvas).bind('touchend', function() {
-            scope.accept();
-        });
-      }
     };
-  }
+}
 ]);
-
-// Backward compatibility
-angular.module('ngSignaturePad', ['signature']);
